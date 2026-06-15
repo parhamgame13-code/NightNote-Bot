@@ -327,18 +327,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ==================== MAIN ====================
 
-def main():
-    asyncio.run(run())
-
-async def run():
-    await init_db()
+if __name__ == "__main__":
+    import asyncio
+    asyncio.get_event_loop().run_until_complete(init_db())
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_command))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     print("🌙 NightNote Bot is running!")
-    await app.run_polling(drop_pending_updates=True)
-
-if __name__ == "__main__":
-    main()
+    app.run_polling(drop_pending_updates=True)
