@@ -6,7 +6,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 from database import *
 
 TOKEN = os.environ.get("BOT_TOKEN")
-ADMIN_ID = int(os.environ.get("8263223680"))
+ADMIN_ID = int(os.environ.get("ADMIN_ID"))
 
 async def check_membership(bot, user_id):
     channels = await get_channels()
