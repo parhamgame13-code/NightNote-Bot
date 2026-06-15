@@ -92,3 +92,60 @@ async def get_all_users():
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute('SELECT user_id FROM users WHERE is_banned = 0') as cursor:
             return await cursor.fetchall()
+
+async def add_question(question, option_a, option_b, option_c, option_d, correct):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute('''CREATE TABLE IF NOT EXISTS questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            question TEXT,
+            option_a TEXT,
+            option_b TEXT,
+            option_c TEXT,
+            option_d TEXT,
+            correct TEXT
+        )''')
+        await db.execute('''INSERT INTO questions 
+            (question, option_a, option_b, option_c, option_d, correct) 
+            VALUES (?, ?, ?, ?, ?, ?)''',
+            (question, option_a, option_b, option_c, option_d, correct))
+        await db.commit()
+
+async def get_daily_questions():
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute('''CREATE TABLE IF NOT EXISTS questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            question TEXT,
+            option_a TEXT,
+            option_b TEXT,
+            option_c TEXT,
+            option_d TEXT,
+            correct TEXT
+        )''')
+        async with db.execute('SELECT * FROM questions ORDER BY RANDOM() LIMIT 5') as c:
+            return await c.fetchall()
+
+async def get_user_quiz_today(user_id):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute('''CREATE TABLE IF NOT EXISTS quiz_answers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            question_id INTEGER,
+            date TEXT,
+            correct INTEGER
+        )''')
+        today = datetime.now().strftime("%Y-%m-%d")
+        async with db.execute('''SELECT COUNT(*) FROM quiz_answers 
+            WHERE user_id = ? AND date = ?''', (user_id, today)) as c:
+            return (await c.fetchone())[0]
+
+async def save_quiz_answer(user_id, question_id, correct):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute('''CREATE TABLE IF NOT EXISTS quiz_answers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            question_id INTEGER,
+            date TEXT,
+            correct INTEGER
+        )''')
+        today = datetime.now().strftime("%Y-%m-%d")
+        await db.execute('''INSERT INTO quiz_answers (user_id, question_id, date, correct
