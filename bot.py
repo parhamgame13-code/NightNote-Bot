@@ -259,6 +259,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['waiting'] = 'unban'
         await query.edit_message_text("✅ آیدی عددی کاربر رو بنویس:")
 
+    elif data == "quiz":
+        await start_quiz(update, context, edit=True)
+
+    elif data.startswith("quiz_ans_"):
+        await handle_quiz_answer(update, context)
+
+    elif data.startswith("quiz_next_"):
+        next_q = context.user_data.get('next_question')
+        if next_q:
+            await send_quiz_question(update, context, next_q, edit=True)
+            
     elif data == "admin_menu":
         await show_admin_panel(update, context, edit=True)
 
@@ -268,6 +279,7 @@ async def show_admin_panel(update, context, edit=False):
          InlineKeyboardButton("📢 ارسال همگانی", callback_data="admin_broadcast")],
         [InlineKeyboardButton("➕ اضافه کانال", callback_data="admin_add_ch"),
          InlineKeyboardButton("➖ حذف کانال", callback_data="admin_remove_ch")],
+        [InlineKeyboardButton("➕ اضافه کردن سوال", callback_data="admin_add_q")],
         [InlineKeyboardButton("🚫 بن کاربر", callback_data="admin_ban"),
          InlineKeyboardButton("✅ آنبن کاربر", callback_data="admin_unban")]
     ]
@@ -325,6 +337,18 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"✅ کاربر {text} آنبن شد.")
         except Exception:
             await update.message.reply_text("❌ آیدی اشتباهه.")
+            
+    elif waiting == 'add_question':
+        try:
+            parts = text.split('|')
+            if len(parts) != 6:
+                await update.message.reply_text("❌ فرمت اشتباهه! دقیقاً ۶ بخش با | جدا کن.")
+                return
+            await add_question(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5].upper())
+            await update.message.reply_text("✅ سوال اضافه شد!")
+        except Exception as e:
+            await update.message.reply_text(f"❌ خطا: {e}")
+        context.user_data['waiting'] = None
 async def start_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE, edit=False):
     user = update.effective_user
     answered = await get_user_quiz_today(user.id)
