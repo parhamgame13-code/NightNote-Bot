@@ -123,6 +123,7 @@ async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, edi
          InlineKeyboardButton("👤 پروفایل من", callback_data="profile")],
         [InlineKeyboardButton("🎁 جایزه روزانه", callback_data="daily"),
          InlineKeyboardButton("🔗 لینک دعوت", callback_data="referral")],
+        [InlineKeyboardButton("🧠 کوییز روزانه", callback_data="quiz")],
         [InlineKeyboardButton("📞 پشتیبانی", callback_data="support")]
     ]
     text = (f"سلام {user.first_name}! 👋\n\n"
@@ -324,7 +325,104 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"✅ کاربر {text} آنبن شد.")
         except Exception:
             await update.message.reply_text("❌ آیدی اشتباهه.")
+async def start_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE, edit=False):
+    user = update.effective_user
+    answered = await get_user_quiz_today(user.id)
+    
+    if answered >= 5:
+        text = "✅ کوییز امروز رو تموم کردی!\nفردا دوباره بیا 😊"
+        keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="main_menu")]]
+        if edit:
+            await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+        else:
+            await update.effective_message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
 
+    questions = await get_daily_questions()
+    if not questions:
+        text = "❌ هنوز سوالی اضافه نشده!\nادمین داره سوالا رو آماده میکنه 🔧"
+        keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="main_menu")]]
+        if edit:
+            await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+        else:
+            await update.effective_message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+
+    context.user_data['quiz_questions'] = [q[0] for q in questions]
+    context.user_data['quiz_index'] = 0
+    await send_quiz_question(update, context, questions[0], edit=edit)
+
+async def send_quiz_question(update, context, question, edit=False):
+    q_id, q_text, a, b, c, d, correct = question
+    answered = await get_user_quiz_today(update.effective_user.id)
+    num = answered + 1
+    
+    keyboard = [
+        [InlineKeyboardButton(f"🅰️ {a}", callback_data=f"quiz_ans_{q_id}_A")],
+        [InlineKeyboardButton(f"🅱️ {b}", callback_data=f"quiz_ans_{q_id}_B")],
+        [InlineKeyboardButton(f"🆎 {c}", callback_data=f"quiz_ans_{q_id}_C")],
+        [InlineKeyboardButton(f"🆗 {d}", callback_data=f"quiz_ans_{q_id}_D")]
+    ]
+    text = f"🧠 سوال {num} از 5:\n\n{q_text}"
+    markup = InlineKeyboardMarkup(keyboard)
+    
+    if edit:
+        await update.callback_query.edit_message_text(text, reply_markup=markup)
+    else:
+        await update.effective_message.reply_text(text, reply_markup=markup)
+
+async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user = update.effective_user
+    
+    parts = query.data.split("_")
+    q_id = int(parts[2])
+    user_answer = parts[3]
+    
+    async with aiosqlite.connect("nightnote.db") as db:
+        async with db.execute('SELECT correct, question FROM questions WHERE id = ?', (q_id,)) as c:
+            row = await c.fetchone()
+    
+    if not row:
+        return
+    
+    correct_answer, q_text = row
+    is_correct = user_answer == correct_answer
+    await save_quiz_answer(user.id, q_id, is_correct)
+    
+    answered = await get_user_quiz_today(user.id)
+    
+    if is_correct:
+        result_text = f"✅ آفرین! جواب درسته! +۲۰ امتیاز 🎉"
+    else:
+        result_text = f"❌ اشتباه! جواب درست: {correct_answer}"
+    
+    if answered >= 5:
+        db_user = await get_user(user.id)
+        keyboard = [[InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")]]
+        await query.edit_message_text(
+            f"{result_text}\n\n🏁 کوییز امروز تموم شد!\n⭐ امتیاز کل: {db_user[3]}",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    else:
+        questions = await get_daily_questions()
+        answered_ids = []
+        async with aiosqlite.connect("nightnote.db") as db:
+            today = datetime.now().strftime("%Y-%m-%d")
+            async with db.execute('SELECT question_id FROM quiz_answers WHERE user_id = ? AND date = ?',
+                                  (user.id, today)) as c:
+                answered_ids = [row[0] for row in await c.fetchall()]
+        
+        next_questions = [q for q in questions if q[0] not in answered_ids]
+        
+        if next_questions:
+            keyboard = [[InlineKeyboardButton("➡️ سوال بعدی", callback_data=f"quiz_next_{next_questions[0][0]}")]]
+            await query.edit_message_text(
+                f"{result_text}\n\n{answered} از 5 سوال جواب دادی",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            context.user_data['next_question'] = next_questions[0]
 # ==================== MAIN ====================
 
 if __name__ == "__main__":
