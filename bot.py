@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 from database import *
 
-TOKEN = os.environ.get("8916969488:AAGLJzazzC3O9an5dP_0rkHyDkLL7BAqyRo")
+TOKEN = os.environ.get("BOT_TOKEN")
 ADMIN_ID = int(os.environ.get("8263223680"))
 
 async def check_membership(bot, user_id):
